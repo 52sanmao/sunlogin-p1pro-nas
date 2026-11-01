@@ -1,0 +1,25 @@
+#!/bin/bash
+# 升级后：补齐目录与权限，清掉可能残留的 pid 文件。
+# 配置的新字段由服务自身处理（Config 会把缺失的键按默认值补齐）。
+
+set -u
+
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/p1pro/var}"
+PID_FILE="$VAR_DIR/app.pid"
+
+mkdir -p "$VAR_DIR/logs" 2>/dev/null
+
+# 升级时旧进程已被停掉，残留的 pid 文件会让 status 误判
+if [ -f "$PID_FILE" ]; then
+    pid="$(head -n 1 "$PID_FILE" 2>/dev/null | tr -d '[:space:]')"
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+    fi
+fi
+
+if [ "$(id -u)" = "0" ] && [ -n "${TRIM_USERNAME:-}" ]; then
+    chown -R "$TRIM_USERNAME":"${TRIM_GROUPNAME:-$TRIM_USERNAME}" "$VAR_DIR" 2>/dev/null \
+        || chown -R "$TRIM_USERNAME" "$VAR_DIR" 2>/dev/null || true
+fi
+
+exit 0

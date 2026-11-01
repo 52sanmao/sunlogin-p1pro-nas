@@ -1,0 +1,93 @@
+#!/bin/bash
+# 应用设置提交后：把新值写进 config.json，然后重启面板让配置生效。
+#
+# 语义和向导的提示一致——**留空的项保持原值**。
+# 想清掉访问密码请到面板的「设置」里勾"清除密码"，这里不做隐式清空。
+
+set -u
+
+APP_DIR="${TRIM_APPDEST:-/var/apps/p1pro/target}"
+ETC_DIR="${TRIM_PKGETC:-/var/apps/p1pro/etc}"
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/p1pro/var}"
+TMP_LOG="${TRIM_TEMP_LOGFILE:-}"
+
+CONF="$ETC_DIR/config.json"
+MAIN="$(dirname "$APP_DIR")/cmd/main"
+[ -x "$MAIN" ] || MAIN="/var/apps/p1pro/cmd/main"
+
+PY="$(command -v python3 || echo /usr/bin/python3)"
+
+# 记下改动前是否在运行：应用本来就停着，就不要擅自拉起来
+was_running=no
+if [ -x "$MAIN" ] && "$MAIN" status >/dev/null 2>&1; then
+    was_running=yes
+fi
+
+ERRFILE="$VAR_DIR/.config.err"
+"$PY" - "$CONF" "${wizard_host:-}" "${wizard_device_port:-}" "${wizard_access_token:-}" \
+    <<'PYEOF' 2>"$ERRFILE"
+import json
+import os
+import sys
+
+path, host, dport, token = sys.argv[1:5]
+
+cfg = {}
+if os.path.exists(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except Exception:
+        cfg = {}
+if not isinstance(cfg, dict):
+    cfg = {}
+
+device = cfg.setdefault("device", {})
+
+host = (host or "").strip()
+if host:
+    device["host"] = host
+
+dport = (dport or "").strip()
+if dport:
+    try:
+        port = int(dport)
+    except ValueError:
+        port = None
+    if port and 1 <= port <= 65535:
+        device["port"] = port
+
+token = (token or "").strip()
+if token:
+    cfg.setdefault("web", {})["access_token"] = token
+
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as fh:
+    json.dump(cfg, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+os.replace(tmp, path)
+os.chmod(path, 0o600)
+PYEOF
+
+if [ $? -ne 0 ]; then
+    detail="$(tail -n 3 "$ERRFILE" 2>/dev/null | tr '\n' ' ')"
+    msg="配置写入失败：${detail:-未知错误}"
+    [ -n "$TMP_LOG" ] && printf '%s\n' "$msg" >"$TMP_LOG"
+    printf '%s\n' "$msg" >&2
+    rm -f "$ERRFILE"
+    exit 1
+fi
+rm -f "$ERRFILE"
+
+if [ "$was_running" = "yes" ]; then
+    mkdir -p "$VAR_DIR/logs" 2>/dev/null
+    "$MAIN" stop >>"$VAR_DIR/logs/app.log" 2>&1
+    if ! "$MAIN" start >>"$VAR_DIR/logs/app.log" 2>&1; then
+        [ -n "$TMP_LOG" ] && printf '%s\n' "配置已保存，但面板重启失败，详见 $VAR_DIR/logs/app.log" >"$TMP_LOG"
+        exit 1
+    fi
+fi
+
+exit 0

@@ -1,0 +1,25 @@
+#!/bin/bash
+# 卸载前：按 wizard/uninstall 里的选择处理历史数据。
+# 默认保留——卸载是"不用了"，不是"删数据"。
+
+set -u
+
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/p1pro/var}"
+ACTION="${wizard_data_action:-keep}"
+
+if [ "$ACTION" != "delete" ]; then
+    exit 0
+fi
+
+# 只删自己这个应用的数据目录；路径长得不像就拒绝，
+# 免得环境变量异常时把别的东西删了。
+case "$VAR_DIR" in
+    /var/apps/p1pro/var | */apps/p1pro/var | */@appdata/p1pro | */@appdata/p1pro/var)
+        rm -rf "$VAR_DIR"
+        ;;
+    *)
+        echo "跳过删除：$VAR_DIR 不像本应用的数据目录" >&2
+        ;;
+esac
+
+exit 0

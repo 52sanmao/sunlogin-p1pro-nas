@@ -1,0 +1,10 @@
+#!/bin/bash
+# 卸载收尾：不留垃圾。配置、数据库都在应用自己的目录里，
+# 飞牛卸载时会处理应用目录；这里只做一次运行痕迹清理。
+
+set -u
+
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/p1pro/var}"
+rm -f "$VAR_DIR/app.pid" 2>/dev/null || true
+
+exit 0

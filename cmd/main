@@ -1,0 +1,187 @@
+#!/bin/bash
+# P1Pro 智能插座 —— 飞牛 fnOS 运行控制
+#
+#   cmd/main start     启动面板服务       成功 0 / 失败 1
+#   cmd/main stop      停止面板服务       成功 0 / 失败 1
+#   cmd/main status    查询运行状态       运行中 0 / 未运行 3
+#
+# 面板本体按 config/privilege 里的 run-as=package 以应用专用用户运行；
+# 如果生命周期脚本是被 root 调起来的，这里用 runuser 降权，避免服务进程带 root。
+
+set -u
+
+APP_NAME="p1pro"
+APP_DIR="${TRIM_APPDEST:-/var/apps/$APP_NAME/target}"
+ETC_DIR="${TRIM_PKGETC:-/var/apps/$APP_NAME/etc}"
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/$APP_NAME/var}"
+TMP_LOG="${TRIM_TEMP_LOGFILE:-}"
+
+CONF="$ETC_DIR/config.json"
+LOG_DIR="$VAR_DIR/logs"
+LOG_FILE="$LOG_DIR/app.log"
+PID_FILE="$VAR_DIR/app.pid"
+
+PORT="${TRIM_SERVICE_PORT:-8787}"
+case "$PORT" in
+    '' | *[!0-9]*) PORT=8787 ;;
+esac
+
+mkdir -p "$LOG_DIR" 2>/dev/null
+: >>"$LOG_FILE" 2>/dev/null
+
+log_msg() {
+    printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG_FILE" 2>/dev/null
+}
+
+# 失败原因同时写进 TRIM_TEMP_LOGFILE，飞牛会把它展示给用户，
+# 比让用户自己去翻日志有用得多。
+fail_msg() {
+    printf '%s\n' "$1" >&2
+    log_msg "ERROR $1"
+    [ -n "$TMP_LOG" ] && printf '%s\n' "$1" >"$TMP_LOG" 2>/dev/null
+    return 1
+}
+
+find_python() {
+    local c
+    for c in python3 /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python; do
+        if command -v "$c" >/dev/null 2>&1; then
+            command -v "$c"
+            return 0
+        fi
+    done
+    return 1
+}
+
+read_pid() {
+    [ -r "$PID_FILE" ] || return 1
+    head -n 1 "$PID_FILE" 2>/dev/null | tr -d '[:space:]'
+}
+
+is_running() {
+    local pid
+    pid="$(read_pid)" || return 1
+    [ -n "$pid" ] || return 1
+    if kill -0 "$pid" 2>/dev/null; then
+        return 0
+    fi
+    # 进程没了但 pid 文件还在（掉电、被 kill -9），顺手清理
+    rm -f "$PID_FILE"
+    return 1
+}
+
+port_open() {
+    "$1" -c '
+import socket, sys
+s = socket.socket()
+s.settimeout(0.6)
+try:
+    s.connect(("127.0.0.1", int(sys.argv[1])))
+    s.close()
+except Exception:
+    sys.exit(1)
+' "$PORT" >/dev/null 2>&1
+}
+
+start_process() {
+    local py i
+    if is_running; then
+        log_msg "已在运行，pid=$(read_pid)"
+        return 0
+    fi
+    if [ ! -f "$APP_DIR/server/app.py" ]; then
+        fail_msg "应用文件缺失（$APP_DIR/server/app.py），请重新安装。"
+        return 1
+    fi
+    if [ ! -f "$CONF" ]; then
+        fail_msg "缺少配置文件 $CONF，请在应用设置里重新填写插座地址后再启动。"
+        return 1
+    fi
+    py="$(find_python)" || {
+        fail_msg "没有找到 python3。请先在飞牛应用中心安装 Python3 再启动本应用。"
+        return 1
+    }
+
+    log_msg "启动：$py $APP_DIR/server/app.py -c $CONF --port $PORT"
+    # nohup 兜个底：有人 SSH 上去手动 start 再退出登录时，
+    # 不被 SIGHUP 顺手带走。nohup 不 fork，$! 仍然是面板进程本身。
+    if [ "$(id -u)" = "0" ] && [ -n "${TRIM_USERNAME:-}" ] && command -v runuser >/dev/null 2>&1; then
+        nohup runuser -u "$TRIM_USERNAME" -- "$py" "$APP_DIR/server/app.py" \
+            -c "$CONF" --port "$PORT" >>"$LOG_FILE" 2>&1 &
+    else
+        nohup "$py" "$APP_DIR/server/app.py" -c "$CONF" --port "$PORT" >>"$LOG_FILE" 2>&1 &
+    fi
+    printf '%s' "$!" >"$PID_FILE"
+
+    # 等端口真正可连再算启动成功，避免"启动成功但打不开"
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if ! is_running; then
+            fail_msg "面板进程启动后立即退出，详见日志 $LOG_FILE"
+            return 1
+        fi
+        if port_open "$py"; then
+            log_msg "启动完成，pid=$(read_pid)，端口 $PORT"
+            return 0
+        fi
+        sleep 0.5
+        i=$((i + 1))
+    done
+    log_msg "WARN 端口 $PORT 在 15 秒内未就绪，进程仍在运行，稍后可刷新重试"
+    return 0
+}
+
+stop_process() {
+    local pid i
+    pid="$(read_pid)" || {
+        log_msg "未在运行（无 pid 文件）"
+        return 0
+    }
+    [ -n "$pid" ] || return 0
+
+    if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        log_msg "未在运行（pid $pid 已不存在）"
+        return 0
+    fi
+
+    log_msg "停止：向 $pid 发送 TERM"
+    kill -TERM "$pid" 2>/dev/null
+
+    i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 15 ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+        log_msg "进程未响应 TERM，发送 KILL：$pid"
+        kill -KILL "$pid" 2>/dev/null
+        sleep 1
+    fi
+    rm -f "$PID_FILE"
+    log_msg "已停止"
+    return 0
+}
+
+case "${1:-}" in
+    start)
+        start_process
+        exit $?
+        ;;
+    stop)
+        stop_process
+        exit $?
+        ;;
+    status)
+        if is_running; then
+            exit 0
+        else
+            exit 3
+        fi
+        ;;
+    *)
+        echo "用法：$0 {start|stop|status}" >&2
+        exit 1
+        ;;
+esac

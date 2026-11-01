@@ -1,0 +1,35 @@
+#!/bin/bash
+# 安装前检查：没有 Python 3 就直接拦下来，
+# 别让用户装完之后点开应用才发现面板起不来。
+
+set -u
+
+TMP_LOG="${TRIM_TEMP_LOGFILE:-}"
+say() {
+    [ -n "$TMP_LOG" ] && printf '%s\n' "$1" >"$TMP_LOG" 2>/dev/null
+}
+
+PY=""
+for c in python3 /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python; do
+    if command -v "$c" >/dev/null 2>&1; then
+        PY="$(command -v "$c")"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    say "本应用需要 Python 3.7 及以上。请先在终端执行 sudo apt install -y python3，或安装飞牛应用中心里的 Python3，然后重新安装本应用。"
+    exit 1
+fi
+
+if ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' 2>/dev/null; then
+    say "当前 Python 版本过低（$("$PY" -V 2>&1)），本应用需要 3.7 及以上。"
+    exit 1
+fi
+
+if ! "$PY" -c 'import sqlite3' 2>/dev/null; then
+    say "当前 Python 缺少 sqlite3 模块，历史数据无法保存。请安装 python3 的 sqlite3 组件后重试。"
+    exit 1
+fi
+
+exit 0

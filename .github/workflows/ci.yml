@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 冒烟测试 / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 语法检查
+        run: python -m compileall -q app/server tests
+
+      - name: 端到端冒烟测试
+        run: python tests/smoke_test.py
+
+  docker:
+    name: 镜像构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建镜像
+        run: docker build -t p1pro-nas:ci .
+      - name: 镜像内自检（无设备时应报错退出，而不是崩溃）
+        run: |
+          docker run --rm --network host -e P1PRO_HOST=127.0.0.1 p1pro-nas:ci \
+            python app.py --check; code=$?
+          echo "退出码 $code（期望 2 = 连不上设备）"
+          test "$code" -eq 2
+      - name: 容器能起来并响应健康检查
+        run: |
+          docker run -d --name p1pro-ci --network host \
+            -e P1PRO_HOST=127.0.0.1 -e P1PRO_PORT=18787 p1pro-nas:ci
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:18787/api/health > /dev/null; then
+              echo "健康检查通过"; docker rm -f p1pro-ci; exit 0
+            fi
+            sleep 1
+          done
+          echo "健康检查超时"; docker logs p1pro-ci; exit 1

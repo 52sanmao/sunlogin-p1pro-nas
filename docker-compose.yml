@@ -1,0 +1,34 @@
+# P1Pro 控制台 · 飞牛版
+#
+# 用法：
+#   1. 改下面 environment 里的 P1PRO_HOST 为你的插座 IP
+#   2. docker compose up -d
+#   3. 浏览器打开 http://<NAS-IP>:8787
+#
+# 为什么必须 network_mode: host ——
+# 插座在内网 192.168.x.x 上，容器默认的 bridge 网络出得去，
+# 但如果你还想从其它设备访问面板，端口映射更麻烦；
+# host 模式还省掉了 mDNS/广播发现问题。飞牛跑在 Debian 上，host 网络可用。
+
+services:
+  p1pro:
+    build: .
+    image: p1pro-nas:2.0.0
+    container_name: p1pro-console
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Asia/Shanghai
+      P1PRO_PORT: "8787"
+      # 首次启动时写入配置；之后改 data/config.json 或直接在面板里改
+      P1PRO_HOST: "192.168.0.15"
+      # 给面板加个访问口令（留空 = 不鉴权）。设了之后访问
+      # http://<NAS-IP>:8787/?token=你的口令 一次即可记住
+      P1PRO_TOKEN: ""
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

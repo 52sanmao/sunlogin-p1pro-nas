@@ -1,0 +1,13 @@
+#!/bin/bash
+# 升级前：备份现有配置，升级脚本万一写坏了还能翻回来。
+# 数据库不动——升级只涉及代码，历史数据就地继续用。
+
+set -u
+
+ETC_DIR="${TRIM_PKGETC:-/var/apps/p1pro/etc}"
+
+if [ -f "$ETC_DIR/config.json" ]; then
+    cp -f "$ETC_DIR/config.json" "$ETC_DIR/config.json.bak" 2>/dev/null || true
+fi
+
+exit 0

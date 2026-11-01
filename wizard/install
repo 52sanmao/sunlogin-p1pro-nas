@@ -1,0 +1,41 @@
+[
+  {
+    "stepTitle": "连接插座",
+    "items": [
+      {
+        "type": "text",
+        "field": "wizard_host",
+        "label": "插座 IP 地址",
+        "initValue": "192.168.0.15",
+        "rules": [
+          { "required": true, "message": "请填写插座的 IP 地址" },
+          { "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", "message": "IP 格式不对，例如 192.168.0.15" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_device_port",
+        "label": "插座端口",
+        "initValue": "6767",
+        "rules": [
+          { "required": true, "message": "请填写端口" },
+          { "pattern": "^[0-9]{1,5}$", "message": "端口只能是数字" }
+        ]
+      },
+      {
+        "type": "tips",
+        "helpText": "插座要和 NAS 在同一局域网。建议在路由器里给插座绑定固定 IP，否则换了地址面板就连不上。不知道 IP 也没关系，装好后在面板右上角的「扫描」里可以自动发现。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_access_token",
+        "label": "面板访问密码（可留空）",
+        "initValue": ""
+      },
+      {
+        "type": "tips",
+        "helpText": "留空表示局域网内谁都能打开面板并操作开关。填了密码后，打开面板需要输入一次，之后浏览器会记住。"
+      }
+    ]
+  }
+]

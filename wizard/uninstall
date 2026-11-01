@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "卸载",
+    "items": [
+      {
+        "type": "radio",
+        "field": "wizard_data_action",
+        "label": "历史数据（配置与用电记录）",
+        "initValue": "keep",
+        "options": [
+          { "label": "保留（重新安装后可以接着看历史曲线）", "value": "keep" },
+          { "label": "全部删除", "value": "delete" }
+        ]
+      },
+      {
+        "type": "tips",
+        "helpText": "选择「保留」时，数据留在 NAS 的应用数据目录里，不会占用新的空间；确定不再使用再选删除。"
+      }
+    ]
+  }
+]

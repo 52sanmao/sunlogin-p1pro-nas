@@ -1,0 +1,9 @@
+# 仓库里一律用 LF。
+# cmd/ 下的生命周期脚本装到飞牛上必须是 LF，CRLF 会让脚本报
+# "bad interpreter: /bin/bash^M"，整个应用装不起来。
+* text=auto eol=lf
+
+# 二进制文件不要做换行转换
+*.png binary
+*.fpk binary
+*.db binary

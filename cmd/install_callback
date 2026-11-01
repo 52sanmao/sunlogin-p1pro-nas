@@ -1,0 +1,99 @@
+#!/bin/bash
+# 安装完成：把向导里填的插座地址 / 端口 / 访问密码写成 config.json。
+#
+# 用 Python 生成 JSON 而不是 shell 拼字符串——地址和密码都是用户输入，
+# 拼字符串迟早会在引号、中文、反斜杠上翻车。
+
+set -u
+
+ETC_DIR="${TRIM_PKGETC:-/var/apps/p1pro/etc}"
+VAR_DIR="${TRIM_PKGVAR:-/var/apps/p1pro/var}"
+TMP_LOG="${TRIM_TEMP_LOGFILE:-}"
+
+mkdir -p "$ETC_DIR" "$VAR_DIR/logs"
+
+PY=""
+for c in python3 /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python; do
+    if command -v "$c" >/dev/null 2>&1; then
+        PY="$(command -v "$c")"
+        break
+    fi
+done
+if [ -z "$PY" ]; then
+    [ -n "$TMP_LOG" ] && printf '%s\n' "找不到 python3，无法生成配置文件。" >"$TMP_LOG"
+    exit 1
+fi
+
+ERRFILE="$VAR_DIR/.config.err"
+"$PY" - "$ETC_DIR/config.json" "$VAR_DIR/p1pro.db" \
+    "${wizard_host:-}" "${wizard_device_port:-6767}" "${wizard_access_token:-}" \
+    <<'PYEOF' 2>"$ERRFILE"
+import ipaddress
+import json
+import os
+import sys
+
+path, db_path, host, dport, token = sys.argv[1:6]
+
+cfg = {}
+if os.path.exists(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except Exception:
+        cfg = {}
+if not isinstance(cfg, dict):
+    cfg = {}
+
+device = cfg.setdefault("device", {})
+host = (host or "").strip()
+if host:
+    # 只认合法的 IPv4：192.168.0.999 这种正则能过、设备连不上的值必须拦住
+    try:
+        ipaddress.IPv4Address(host)
+    except ValueError:
+        sys.stderr.write("插座 IP 不合法：%s\n" % host)
+        sys.exit(1)
+    device["host"] = host
+
+try:
+    port = int(dport or 6767)
+except (TypeError, ValueError):
+    port = 6767
+device["port"] = port if 1 <= port <= 65535 else 6767
+
+# 数据库放在应用自己的 var 目录（重启、升级都保留）
+cfg.setdefault("storage", {})["db_path"] = db_path
+
+# 空字符串也写进去：安装时向导里留空就表示"不要密码"
+cfg.setdefault("web", {})["access_token"] = (token or "").strip()
+
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as fh:
+    json.dump(cfg, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+os.replace(tmp, path)
+os.chmod(path, 0o600)  # 里面存着访问密码
+PYEOF
+
+if [ $? -ne 0 ]; then
+    # 把 Python 的真实报错透给用户，别一律甩一句"检查权限"
+    detail="$(tail -n 3 "$ERRFILE" 2>/dev/null | tr '\n' ' ')"
+    msg="安装配置写入失败：${detail:-未知错误}"
+    [ -n "$TMP_LOG" ] && printf '%s\n' "$msg" >"$TMP_LOG"
+    printf '%s\n' "$msg" >&2
+    rm -f "$ERRFILE"
+    exit 1
+fi
+rm -f "$ERRFILE"
+
+# 应用以专用用户运行，得让它有写权限（系统一般会配 ACL，这里兜个底）
+if [ "$(id -u)" = "0" ] && [ -n "${TRIM_USERNAME:-}" ]; then
+    chown -R "$TRIM_USERNAME":"${TRIM_GROUPNAME:-$TRIM_USERNAME}" "$VAR_DIR" 2>/dev/null \
+        || chown -R "$TRIM_USERNAME" "$VAR_DIR" 2>/dev/null || true
+    chown "$TRIM_USERNAME" "$ETC_DIR/config.json" 2>/dev/null || true
+fi
+
+exit 0

@@ -1,0 +1,22 @@
+appname               = p1pro
+version               = 2.0.0
+display_name          = P1Pro 智能插座
+desc                  = 向日葵 P1Pro 智能插线板的本地面板：四路独立开关、功率/电压/电流曲线、用电统计与电费估算，并支持设备原生定时与倒计时。全部数据保存在本机，不经过任何云端。
+source                = thirdparty
+platform              = all
+
+maintainer            = 52sanmao
+maintainer_url        = https://github.com/52sanmao/p1pro-nas
+
+os_min_version        = 0.8.0
+
+service_port          = 8787
+checkport             = true
+ctl_stop              = true
+
+desktop_uidir         = ui
+desktop_applaunchname = p1pro.Application
+
+disable_authorization_path = true
+
+changelog             = 首个飞牛原生版本：fnpack 打包、安装向导填写插座地址、数据写入应用 var 目录、按应用用户运行。

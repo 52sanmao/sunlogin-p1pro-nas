@@ -1,0 +1,49 @@
+#!/bin/bash
+# 应用设置提交前校验。向导里能填的都得再验一遍——
+# 向导规则只是界面提示，环境变量是可以被别的方式塞进来的。
+
+set -u
+
+TMP_LOG="${TRIM_TEMP_LOGFILE:-}"
+say() {
+    [ -n "$TMP_LOG" ] && printf '%s\n' "$1" >"$TMP_LOG" 2>/dev/null
+    printf '%s\n' "$1" >&2
+}
+
+PY="$(command -v python3 || echo /usr/bin/python3)"
+
+HOST="${wizard_host:-}"
+if [ -n "$HOST" ]; then
+    if ! "$PY" -c 'import ipaddress,sys; ipaddress.ip_address(sys.argv[1])' "$HOST" >/dev/null 2>&1; then
+        say "插座 IP 格式不对：$HOST"
+        exit 1
+    fi
+fi
+
+DPORT="${wizard_device_port:-}"
+if [ -n "$DPORT" ]; then
+    case "$DPORT" in
+        *[!0-9]*)
+            say "插座端口只能是数字：$DPORT"
+            exit 1
+            ;;
+    esac
+    if [ "$DPORT" -lt 1 ] || [ "$DPORT" -gt 65535 ]; then
+        say "插座端口超出范围（1~65535）：$DPORT"
+        exit 1
+    fi
+fi
+
+TOKEN="${wizard_access_token:-}"
+if [ -n "$TOKEN" ]; then
+    if [ "${#TOKEN}" -lt 4 ]; then
+        say "访问密码至少 4 位。"
+        exit 1
+    fi
+    if [ "${#TOKEN}" -gt 64 ]; then
+        say "访问密码最多 64 位。"
+        exit 1
+    fi
+fi
+
+exit 0
