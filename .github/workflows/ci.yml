@@ -76,8 +76,12 @@ jobs:
         run: docker build -t p1pro-nas:ci .
       - name: 镜像内自检（无设备时应报错退出，而不是崩溃）
         run: |
+          # --check 在连不上设备时故意返回 2，所以要先关掉 -e 才能取到退出码
+          set +e
           docker run --rm --network host -e P1PRO_HOST=127.0.0.1 p1pro-nas:ci \
-            python app.py --check; code=$?
+            python app.py --check
+          code=$?
+          set -e
           echo "退出码 $code（期望 2 = 连不上设备）"
           test "$code" -eq 2
       - name: 容器能起来并响应健康检查
