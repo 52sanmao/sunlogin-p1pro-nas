@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import shutil
@@ -44,6 +45,27 @@ def free_port():
     port = s.getsockname()[1]
     s.close()
     return port
+
+
+def expected_device_minutes(hour, minute):
+    """独立算出「本地 hour:minute」对应的设备分钟数（UTC 0 点起）。
+
+    不复用服务端的换算逻辑，避免"两边错得一样"。
+    posix 上被测进程的 TZ 已被钉成东八区，这里用 zoneinfo 算真值；
+    Windows 用本机时区算（MSVC 运行时不认 Asia/Shanghai 这种写法）。
+    """
+    label = "本机时区"
+    base = datetime.datetime.now()
+    if os.name == "posix":
+        try:
+            from zoneinfo import ZoneInfo
+            base = datetime.datetime.now(ZoneInfo("Asia/Shanghai"))
+            label = "东八区"
+        except Exception:
+            pass
+    local = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    utc = local.astimezone(datetime.timezone.utc)
+    return utc.hour * 60 + utc.minute, label
 
 
 def wait_http(url, timeout=25.0):
@@ -163,6 +185,11 @@ def test_end_to_end():
 
         env = dict(os.environ)
         env["P1PRO_QUIET"] = "1"
+        # 定时接口收的是「UTC 0 点起的分钟数」，服务端按本地时区换算。
+        # posix 上把被测进程的时区钉成东八区，断言才有确定的真值；
+        # Windows 的 C 运行时不认 "Asia/Shanghai"，那边就用本机时区算期望值。
+        if os.name == "posix":
+            env["TZ"] = "Asia/Shanghai"
         app = subprocess.Popen([PY, os.path.join(SERVER, "app.py"), "-c", cfg_path],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 
@@ -208,9 +235,10 @@ def test_end_to_end():
                           {"op": "add", "index": 2, "hour": 7, "minute": 30,
                            "action": 1, "repeat": 127})
         check("新增定时", code == 200 and resp.get("ok"), str(resp))
-        check("时区换算正确（07:30 → UTC 1410，东八区）",
-              resp.get("device_time") in (1410, (450 - 480) % 1440),
-              "device_time=%s" % resp.get("device_time"))
+        expected, tz_label = expected_device_minutes(7, 30)
+        check("时区换算正确（07:30 → 设备 %d 分，%s）" % (expected, tz_label),
+              resp.get("device_time") == expected,
+              "device_time=%s 期望 %s" % (resp.get("device_time"), expected))
         timers = get(base + "/api/timers")
         s2 = timers["sockets"][2]["timers"]
         check("读回定时 1 条", len(s2) == 1, str(s2))
@@ -250,8 +278,14 @@ def test_end_to_end():
         check("曲线含缺失标记（刚启动只有几十秒数据）",
               any(p["p"] is None for p in series["points"]))
 
-        # 汇总
-        summary = get(base + "/api/summary")
+        # 汇总。刚跨分钟那一瞬间，新分钟的桶才 0 秒、还积不出电量，
+        # 这时"今日"会是空的（不是 bug）。轮询几秒，避免偶发红灯。
+        summary = None
+        for _ in range(24):
+            summary = get(base + "/api/summary")
+            if summary["today"]["kwh"] is not None:
+                break
+            time.sleep(0.5)
         check("今日汇总有数值", summary["today"]["kwh"] is not None, str(summary["today"]))
         check("今日覆盖率 < 100%（只跑了几秒）", summary["today"]["cov"] < 1.0,
               "cov=%.3f" % summary["today"]["cov"])

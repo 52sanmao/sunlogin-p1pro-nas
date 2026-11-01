@@ -105,11 +105,14 @@ start_process() {
     log_msg "启动：$py $APP_DIR/server/app.py -c $CONF --port $PORT"
     # nohup 兜个底：有人 SSH 上去手动 start 再退出登录时，
     # 不被 SIGHUP 顺手带走。nohup 不 fork，$! 仍然是面板进程本身。
+    # 精简系统没有 nohup 也能跑，只是少了这层保护。
+    NOHUP=""
+    command -v nohup >/dev/null 2>&1 && NOHUP="nohup"
     if [ "$(id -u)" = "0" ] && [ -n "${TRIM_USERNAME:-}" ] && command -v runuser >/dev/null 2>&1; then
-        nohup runuser -u "$TRIM_USERNAME" -- "$py" "$APP_DIR/server/app.py" \
+        $NOHUP runuser -u "$TRIM_USERNAME" -- "$py" "$APP_DIR/server/app.py" \
             -c "$CONF" --port "$PORT" >>"$LOG_FILE" 2>&1 &
     else
-        nohup "$py" "$APP_DIR/server/app.py" -c "$CONF" --port "$PORT" >>"$LOG_FILE" 2>&1 &
+        $NOHUP "$py" "$APP_DIR/server/app.py" -c "$CONF" --port "$PORT" >>"$LOG_FILE" 2>&1 &
     fi
     printf '%s' "$!" >"$PID_FILE"
 
