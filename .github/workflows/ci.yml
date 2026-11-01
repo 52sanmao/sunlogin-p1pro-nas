@@ -26,6 +26,47 @@ jobs:
       - name: 端到端冒烟测试
         run: python tests/smoke_test.py
 
+  fpk:
+    name: 打包 fpk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 这一步会在 Linux 上跑通完整的 fnpack 打包链路，
+      # 顺带验证 cmd/ 脚本语法、LF 换行、manifest 与 config 的格式
+      - name: fnpack build
+        run: bash tools/build_fpk.sh
+
+      - name: 检查产物结构
+        run: |
+          test -f p1pro.fpk
+          tar -tzf p1pro.fpk | sort > /tmp/actual.txt
+          cat /tmp/actual.txt
+          for must in manifest ICON.PNG ICON_256.PNG app.tgz \
+                      config/privilege config/resource \
+                      cmd/main cmd/install_init cmd/install_callback \
+                      wizard/install; do
+            grep -qx "$must" /tmp/actual.txt || { echo "缺少 $must"; exit 1; }
+          done
+
+      - name: 检查脚本权限与换行
+        run: |
+          mkdir -p /tmp/x && tar -xzf p1pro.fpk -C /tmp/x
+          for f in /tmp/x/cmd/*; do
+            test -x "$f" || { echo "$f 没有可执行位"; exit 1; }
+            if grep -q $'\r' "$f"; then echo "$f 含 CRLF"; exit 1; fi
+          done
+          echo "全部可执行且为 LF"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p1pro-fpk
+          path: p1pro.fpk
+          if-no-files-found: error
+
   docker:
     name: 镜像构建
     runs-on: ubuntu-latest
