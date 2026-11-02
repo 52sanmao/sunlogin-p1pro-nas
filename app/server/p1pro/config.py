@@ -37,7 +37,7 @@ DEFAULT_CONFIG = {
     },
     "web": {
         "host": "0.0.0.0",
-        "port": 8787,
+        "port": 9787,
         # 留空表示不鉴权。填了之后所有 /api/* 需要带 token
         # （浏览器端用同值写入 localStorage，或访问 /?token=xxx 自动记住）。
         "access_token": "",

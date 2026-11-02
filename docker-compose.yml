@@ -3,7 +3,7 @@
 # 用法：
 #   1. 改下面 environment 里的 P1PRO_HOST 为你的插座 IP
 #   2. docker compose up -d
-#   3. 浏览器打开 http://<NAS-IP>:8787
+#   3. 浏览器打开 http://<NAS-IP>:9787
 #
 # 为什么必须 network_mode: host ——
 # 插座在内网 192.168.x.x 上，容器默认的 bridge 网络出得去，
@@ -19,11 +19,11 @@ services:
     network_mode: host
     environment:
       TZ: Asia/Shanghai
-      P1PRO_PORT: "8787"
+      P1PRO_PORT: "9787"
       # 首次启动时写入配置；之后改 data/config.json 或直接在面板里改
       P1PRO_HOST: "192.168.0.15"
       # 给面板加个访问口令（留空 = 不鉴权）。设了之后访问
-      # http://<NAS-IP>:8787/?token=你的口令 一次即可记住
+      # http://<NAS-IP>:9787/?token=你的口令 一次即可记住
       P1PRO_TOKEN: ""
     volumes:
       - ./data:/app/data

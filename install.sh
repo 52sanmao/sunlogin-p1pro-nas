@@ -66,7 +66,7 @@ if systemctl is-active --quiet p1pro; then
   PORT=$(grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "$APP_DIR/config.json" | tail -1 | grep -o '[0-9]*$')
   echo ""
   echo "安装完成，服务已启动。"
-  echo "  访问地址：http://<NAS-IP>:${PORT:-8787}"
+  echo "  访问地址：http://<NAS-IP>:${PORT:-9787}"
   echo "  查看日志：journalctl -u p1pro -f"
   echo "  连通性自检：$PY $APP_DIR/app/server/app.py --check"
 else

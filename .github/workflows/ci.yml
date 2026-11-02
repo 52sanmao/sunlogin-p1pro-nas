@@ -87,9 +87,9 @@ jobs:
       - name: 容器能起来并响应健康检查
         run: |
           docker run -d --name p1pro-ci --network host \
-            -e P1PRO_HOST=127.0.0.1 -e P1PRO_PORT=18787 p1pro-nas:ci
+            -e P1PRO_HOST=127.0.0.1 -e P1PRO_PORT=19787 p1pro-nas:ci
           for i in $(seq 1 20); do
-            if curl -sf http://127.0.0.1:18787/api/health > /dev/null; then
+            if curl -sf http://127.0.0.1:19787/api/health > /dev/null; then
               echo "健康检查通过"; docker rm -f p1pro-ci; exit 0
             fi
             sleep 1

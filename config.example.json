@@ -16,7 +16,7 @@
   },
   "web": {
     "host": "0.0.0.0",
-    "port": 8787,
+    "port": 9787,
     "access_token": ""
   },
   "billing": {

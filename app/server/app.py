@@ -2,7 +2,7 @@
 """P1Pro 控制台 · 飞牛版 启动入口。
 
     python3 app.py                      # 默认配置 config.json
-    python3 app.py --port 8787
+    python3 app.py --port 9787
     python3 app.py --host 192.168.0.15  # 临时指定插座地址（不写回配置）
 
 只用 Python 3 标准库，装完 Python 就能跑，不需要 pip install 任何东西。
@@ -141,7 +141,7 @@ def main(argv=None):
         sampler.start()
 
     bind = str(config.get("web.host", "0.0.0.0"))
-    port = int(config.get("web.port", 8787))
+    port = int(config.get("web.port", 9787))
     try:
         httpd = serve(app, bind, port)
     except OSError as exc:

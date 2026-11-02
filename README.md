@@ -33,7 +33,7 @@
 1. 下载本仓库 Releases 里的 `p1pro.fpk`（或自己 `bash tools/build_fpk.sh` 打一个）
 2. 飞牛桌面 → **应用中心** → 右上角 **手动安装** → 选 `p1pro.fpk`
 3. 选个存储空间，向导里填插座 IP（默认 `192.168.0.15`）、端口（`6767`）、可选的访问密码
-4. 装完桌面出现「P1Pro 智能插座」图标，点开即用，地址是 `http://<NAS-IP>:8787`
+4. 装完桌面出现「P1Pro 智能插座」图标，点开即用，地址是 `http://<NAS-IP>:9787`
 
 **前提**：系统里有 Python 3.7+（飞牛基于 Debian，一般自带；没有就在终端 `sudo apt install -y python3`）。
 安装脚本会先检查，缺了会直接提示并中止，不会让你装完才发现打不开。
@@ -50,7 +50,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-浏览器打开 `http://<NAS-IP>:8787`。
+浏览器打开 `http://<NAS-IP>:9787`。
 
 > 用 `network_mode: host`：容器要访问内网 `192.168.x.x` 上的插座，host 模式最省事，
 > 也省掉端口映射和"局域网发现"的一堆麻烦。
@@ -162,11 +162,11 @@ sudo sh install.sh /vol1/1000/apps/p1pro   # 或者装成 systemd 服务
 
 ```bash
 # 原始样本（2 秒一条，7 天约 30 万行）
-curl -o raw.csv 'http://NAS:8787/api/export?type=raw&days=7'
+curl -o raw.csv 'http://NAS:9787/api/export?type=raw&days=7'
 
 # 小时级 / 天级
-curl -o hour.csv  'http://NAS:8787/api/export?type=hour&days=30'
-curl -o day.csv   'http://NAS:8787/api/export?type=day&days=365'
+curl -o hour.csv  'http://NAS:9787/api/export?type=hour&days=30'
+curl -o day.csv   'http://NAS:9787/api/export?type=day&days=365'
 ```
 
 CSV 里除数值外还带 `samples` 和 `max_gap_seconds` 两列 ——
@@ -311,7 +311,7 @@ key = MD5(sn + "==smart-plug==" + time)
   "device":  { "host": "192.168.0.15", "port": 6767, "timeout": 3.0 },
   "sampler": { "interval_seconds": 2, "backoff_max_seconds": 60 },
   "storage": { "db_path": "/vol1/@appdata/p1pro/p1pro.db", "raw_retention_days": 7, "minute_retention_days": 400 },
-  "web":     { "host": "0.0.0.0", "port": 8787, "access_token": "" },
+  "web":     { "host": "0.0.0.0", "port": 9787, "access_token": "" },
   "billing": { "price_per_kwh": 0.6 },
   "sockets": ["办公电脑主机", "电竞游戏主机", "鱼缸喂食器", "桌面显示器"],
   "limits":  { "rated_watts": 2500 }
@@ -354,7 +354,7 @@ CRLF 装到飞牛会报 `bad interpreter: /bin/bash^M`）、补可执行位、`b
 
 **Q：装完点图标打不开？**
 先看 `/vol1/@appdata/p1pro/logs/app.log`，再看应用中心里的启动状态。
-常见原因：8787 被别的应用占了（`manifest` 里声明了 `service_port`，飞牛启动前会检查端口）、
+常见原因：9787 被别的应用占了（`manifest` 里声明了 `service_port`，飞牛启动前会检查端口）、
 或者 `etc/config.json` 里的插座地址填错了。地址错了不影响启动，面板会显示"离线"。
 
 **Q：面板显示离线，但向日葵官方 App 能控制？**
@@ -389,7 +389,7 @@ sunlogin-p1pro-nas/
 ├── ICON.PNG / ICON_256.PNG     应用图标
 ├── app/
 │   ├── ui/
-│   │   ├── config              桌面入口定义（URL 类型，指向 8787）
+│   │   ├── config              桌面入口定义（URL 类型，指向 9787）
 │   │   └── images/             图标 64 / 256
 │   └── server/                 ← 运行文件，装完在 target/server
 │       ├── app.py              入口（参数、自检、启动、优雅退出）

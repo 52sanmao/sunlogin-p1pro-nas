@@ -28,9 +28,9 @@ ENV PYTHONUNBUFFERED=1 \
 RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 
-EXPOSE 8787
+EXPOSE 9787
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD python -c "import os,urllib.request;urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:%s/api/health'%os.environ.get('P1PRO_PORT','8787'),timeout=3).read()" || exit 1
+  CMD python -c "import os,urllib.request;urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:%s/api/health'%os.environ.get('P1PRO_PORT','9787'),timeout=3).read()" || exit 1
 
 CMD ["python", "app.py", "-c", "/app/data/config.json"]

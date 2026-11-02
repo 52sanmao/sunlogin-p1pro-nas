@@ -21,9 +21,9 @@ LOG_DIR="$VAR_DIR/logs"
 LOG_FILE="$LOG_DIR/app.log"
 PID_FILE="$VAR_DIR/app.pid"
 
-PORT="${TRIM_SERVICE_PORT:-8787}"
+PORT="${TRIM_SERVICE_PORT:-9787}"
 case "$PORT" in
-    '' | *[!0-9]*) PORT=8787 ;;
+    '' | *[!0-9]*) PORT=9787 ;;
 esac
 
 mkdir -p "$LOG_DIR" 2>/dev/null
